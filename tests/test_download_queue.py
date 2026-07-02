@@ -94,12 +94,13 @@ class DownloadQueueTests(unittest.TestCase):
                 mock.patch.object(MODULE, "_download", fake_download),
                 mock.patch.dict(sys.modules, {"folder_paths": folder_paths}),
             ):
-                video, _ = MODULE.KieVideoResultDownload().download("全部待下载")
+                videos, _ = MODULE.KieVideoResultDownload().download("全部待下载")
                 saved = json.loads(task_file.read_text(encoding="utf-8"))
 
                 self.assertTrue(all(task["status"] == "downloaded" for task in saved.values()))
                 self.assertEqual(len(list(root.glob("kie_*.mp4"))), 10)
-                self.assertTrue(video.video_path.endswith("task10.mp4"))
+                self.assertEqual(len(videos), 10)
+                self.assertTrue(videos[0].video_path.endswith("task10.mp4"))
                 with self.assertRaises(ValueError):
                     MODULE.KieVideoResultDownload().download("全部待下载")
                 self.assertEqual(len(list(root.glob("kie_*.mp4"))), 10)
@@ -130,11 +131,19 @@ class DownloadQueueTests(unittest.TestCase):
                 mock.patch.object(MODULE, "_download", fake_download),
                 mock.patch.dict(sys.modules, {"folder_paths": folder_paths}),
             ):
-                video, _ = MODULE.KieVideoResultDownload().download("单个最新")
+                videos, _ = MODULE.KieVideoResultDownload().download("单个最新")
                 saved = json.loads(task_file.read_text(encoding="utf-8"))
 
                 self.assertEqual(sum(task["status"] == "downloaded" for task in saved.values()), 1)
-                self.assertTrue(video.video_path.endswith("task3.mp4"))
+                self.assertEqual(len(videos), 1)
+                self.assertTrue(videos[0].video_path.endswith("task3.mp4"))
+
+    def test_batch_video_output_is_declared_as_a_list(self):
+        self.assertEqual(MODULE.KieVideoResultDownload.OUTPUT_IS_LIST, (True, False))
+        self.assertEqual(
+            MODULE.KieUniversalDownload.OUTPUT_IS_LIST,
+            (False, True, True, False),
+        )
 
 
 if __name__ == "__main__":

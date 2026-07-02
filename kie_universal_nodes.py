@@ -1065,13 +1065,14 @@ class KieUniversalDownload:
 
     RETURN_TYPES = ("IMAGE", "VIDEO", "STRING", "STRING")
     RETURN_NAMES = ("图像", "视频", "文件路径", "下载URL")
+    OUTPUT_IS_LIST = (False, True, True, False)
     FUNCTION = "download"
     CATEGORY = "KieAI/通用"
     IS_CHANGED = _force_run_token
 
     def download(self, 下载模式="单个最新"):
-        video, report = KieVideoResultDownload().download(下载模式)
-        return (_blank_image(), video, video.video_path, report)
+        videos, report = KieVideoResultDownload().download(下载模式)
+        return (_blank_image(), videos, [video.video_path for video in videos], report)
 
 
 def _video_result_url(task):
@@ -1131,6 +1132,7 @@ class KieVideoResultDownload:
 
     RETURN_TYPES = ("VIDEO", "STRING")
     RETURN_NAMES = ("视频", "报告")
+    OUTPUT_IS_LIST = (True, False)
     FUNCTION = "download"
     CATEGORY = "KieAI/视频"
     IS_CHANGED = _force_run_token
@@ -1219,7 +1221,7 @@ class KieVideoResultDownload:
         lines.extend(f"[失败] {task_id} | 原因: {reason}" for task_id, reason in failed)
         if not downloaded:
             raise RuntimeError("\n".join(lines))
-        return (KieVideoAdapter(downloaded[0][1]), "\n".join(lines))
+        return ([KieVideoAdapter(path) for _, path, _ in downloaded], "\n".join(lines))
 
 
 class KieVideoSeriesAsyncSubmit:
