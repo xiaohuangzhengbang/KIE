@@ -1074,13 +1074,23 @@ class KieUniversalDownload:
         return (_blank_image(), video, video.video_path, report)
 
 
+def _video_result_url(task):
+    urls = [url for url in task.get("result_urls", []) if isinstance(url, str) and url]
+    for url in urls:
+        if _extension_from_url(url, "") in {".mp4", ".mov", ".webm", ".mkv"}:
+            return url
+    for url in urls:
+        if "video" in url.lower():
+            return url
+    return urls[-1] if urls else ""
+
+
 def _select_video_download_candidates(tasks):
     downloaded_urls = {
-        url
+        _video_result_url(task)
         for task in tasks.values()
         if isinstance(task, dict) and task.get("status") == "downloaded"
-        for url in task.get("result_urls", [])
-        if isinstance(url, str) and url
+        if _video_result_url(task)
     }
     candidates = [
         (task_id, task)
@@ -1088,10 +1098,10 @@ def _select_video_download_candidates(tasks):
         if isinstance(task, dict)
         and task.get("query_type") in {"jobs", "veo"}
         and task.get("status") == "success"
-        and task.get("result_urls")
+        and _video_result_url(task)
         and not task.get("video_path")
         and not task.get("downloading")
-        and task["result_urls"][0] not in downloaded_urls
+        and _video_result_url(task) not in downloaded_urls
     ]
     candidates.sort(
         key=lambda item: (
@@ -1169,7 +1179,7 @@ class KieVideoResultDownload:
         downloaded = []
         failed = []
         for task_id, task in targets:
-            url = task["result_urls"][0]
+            url = _video_result_url(task)
             model = re.sub(r"[^A-Za-z0-9._-]+", "_", task.get("model", "video"))
             safe_task_id = re.sub(r"[^A-Za-z0-9._-]+", "_", task_id)
             extension = _extension_from_url(url, ".mp4")

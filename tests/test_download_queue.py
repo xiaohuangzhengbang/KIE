@@ -15,6 +15,19 @@ SPEC.loader.exec_module(MODULE)
 
 
 class DownloadQueueTests(unittest.TestCase):
+    def test_uses_video_url_when_grok_returns_image_then_video(self):
+        task = {
+            "result_urls": [
+                "https://example.test/input.png",
+                "https://example.test/generated_video.mp4",
+            ]
+        }
+
+        self.assertEqual(
+            MODULE._video_result_url(task),
+            "https://example.test/generated_video.mp4",
+        )
+
     def test_selects_newest_successful_task(self):
         tasks = {
             "old": {
