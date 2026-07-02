@@ -1057,7 +1057,11 @@ class KieUniversalQuery:
 class KieUniversalDownload:
     @classmethod
     def INPUT_TYPES(cls):
-        return {}
+        return {
+            "required": {
+                "下载模式": (["单个最新", "全部待下载"], {"default": "单个最新"}),
+            }
+        }
 
     RETURN_TYPES = ("IMAGE", "VIDEO", "STRING", "STRING")
     RETURN_NAMES = ("图像", "视频", "文件路径", "下载URL")
@@ -1065,8 +1069,8 @@ class KieUniversalDownload:
     CATEGORY = "KieAI/通用"
     IS_CHANGED = _force_run_token
 
-    def download(self):
-        video, report = KieVideoResultDownload().download()
+    def download(self, 下载模式="单个最新"):
+        video, report = KieVideoResultDownload().download(下载模式)
         return (_blank_image(), video, video.video_path, report)
 
 
@@ -1109,7 +1113,11 @@ def _select_video_download_candidate(tasks):
 class KieVideoResultDownload:
     @classmethod
     def INPUT_TYPES(cls):
-        return {}
+        return {
+            "required": {
+                "下载模式": (["单个最新", "全部待下载"], {"default": "单个最新"}),
+            }
+        }
 
     RETURN_TYPES = ("VIDEO", "STRING")
     RETURN_NAMES = ("视频", "报告")
@@ -1117,10 +1125,12 @@ class KieVideoResultDownload:
     CATEGORY = "KieAI/视频"
     IS_CHANGED = _force_run_token
 
-    def download(self):
+    def download(self, 下载模式="单个最新"):
         with task_file_lock:
             tasks = _read_tasks()
             targets = _select_video_download_candidates(tasks)
+            if 下载模式 == "单个最新":
+                targets = targets[:1]
             for task_id, task in targets:
                 task["downloading"] = True
                 task["download_started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")

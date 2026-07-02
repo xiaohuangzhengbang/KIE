@@ -81,15 +81,47 @@ class DownloadQueueTests(unittest.TestCase):
                 mock.patch.object(MODULE, "_download", fake_download),
                 mock.patch.dict(sys.modules, {"folder_paths": folder_paths}),
             ):
-                video, _ = MODULE.KieVideoResultDownload().download()
+                video, _ = MODULE.KieVideoResultDownload().download("全部待下载")
                 saved = json.loads(task_file.read_text(encoding="utf-8"))
 
                 self.assertTrue(all(task["status"] == "downloaded" for task in saved.values()))
                 self.assertEqual(len(list(root.glob("kie_*.mp4"))), 10)
                 self.assertTrue(video.video_path.endswith("task10.mp4"))
                 with self.assertRaises(ValueError):
-                    MODULE.KieVideoResultDownload().download()
+                    MODULE.KieVideoResultDownload().download("全部待下载")
                 self.assertEqual(len(list(root.glob("kie_*.mp4"))), 10)
+
+    def test_single_mode_downloads_only_the_newest_task(self):
+        tasks = {
+            f"task{index}": {
+                "query_type": "jobs",
+                "status": "success",
+                "result_urls": [f"https://example.test/{index}.mp4"],
+                "submit_order": index,
+                "model": "test",
+            }
+            for index in range(1, 4)
+        }
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task_file = root / "tasks.json"
+            task_file.write_text(json.dumps(tasks), encoding="utf-8")
+            folder_paths = types.SimpleNamespace(get_output_directory=lambda: temp_dir)
+
+            def fake_download(url, output_path):
+                Path(output_path).write_bytes(url.encode("utf-8"))
+                return True
+
+            with (
+                mock.patch.object(MODULE, "TASK_FILE", str(task_file)),
+                mock.patch.object(MODULE, "_download", fake_download),
+                mock.patch.dict(sys.modules, {"folder_paths": folder_paths}),
+            ):
+                video, _ = MODULE.KieVideoResultDownload().download("单个最新")
+                saved = json.loads(task_file.read_text(encoding="utf-8"))
+
+                self.assertEqual(sum(task["status"] == "downloaded" for task in saved.values()), 1)
+                self.assertTrue(video.video_path.endswith("task3.mp4"))
 
 
 if __name__ == "__main__":
