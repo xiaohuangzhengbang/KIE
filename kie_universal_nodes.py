@@ -1070,7 +1070,7 @@ class KieUniversalDownload:
         return (_blank_image(), video, video.video_path, report)
 
 
-def _select_video_download_candidate(tasks):
+def _select_video_download_candidates(tasks):
     downloaded_urls = {
         url
         for task in tasks.values()
@@ -1098,6 +1098,11 @@ def _select_video_download_candidate(tasks):
         ),
         reverse=True,
     )
+    return candidates
+
+
+def _select_video_download_candidate(tasks):
+    candidates = _select_video_download_candidates(tasks)
     return candidates[0] if candidates else None
 
 
@@ -1115,14 +1120,14 @@ class KieVideoResultDownload:
     def download(self):
         with task_file_lock:
             tasks = _read_tasks()
-            target = _select_video_download_candidate(tasks)
-            if target:
-                task_id, task = target
+            targets = _select_video_download_candidates(tasks)
+            for task_id, task in targets:
                 task["downloading"] = True
                 task["download_started_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            if targets:
                 _write_json_file(TASK_FILE, tasks)
 
-        if not target:
+        if not targets:
             failed = [
                 (task_id, task)
                 for task_id, task in tasks.items()
@@ -1144,46 +1149,57 @@ class KieVideoResultDownload:
                 message += f" 最新失败任务: {task_id}，原因: {reason}"
             raise ValueError(message)
 
-        task_id, task = target
-        url = task["result_urls"][0]
         try:
             import folder_paths
 
             output_dir = folder_paths.get_output_directory()
         except Exception:
             output_dir = NODE_DIR
-        model = re.sub(r"[^A-Za-z0-9._-]+", "_", task.get("model", "video"))
-        safe_task_id = re.sub(r"[^A-Za-z0-9._-]+", "_", task_id)
-        extension = _extension_from_url(url, ".mp4")
-        if extension not in {".mp4", ".mov", ".webm", ".mkv"}:
-            extension = ".mp4"
-        filename = f"kie_{model}_{safe_task_id}{extension}"
-        output_path = os.path.join(output_dir, filename)
 
-        try:
-            if not _download(url, output_path):
-                raise RuntimeError("下载接口没有返回有效文件")
-        except Exception as exc:
+        downloaded = []
+        failed = []
+        for task_id, task in targets:
+            url = task["result_urls"][0]
+            model = re.sub(r"[^A-Za-z0-9._-]+", "_", task.get("model", "video"))
+            safe_task_id = re.sub(r"[^A-Za-z0-9._-]+", "_", task_id)
+            extension = _extension_from_url(url, ".mp4")
+            if extension not in {".mp4", ".mov", ".webm", ".mkv"}:
+                extension = ".mp4"
+            filename = f"kie_{model}_{safe_task_id}{extension}"
+            output_path = os.path.join(output_dir, filename)
+
+            try:
+                if not _download(url, output_path):
+                    raise RuntimeError("下载接口没有返回有效文件")
+            except Exception as exc:
+                _save_task(
+                    task_id,
+                    {
+                        "downloading": False,
+                        "download_error": str(exc),
+                    },
+                )
+                failed.append((task_id, str(exc)))
+                continue
+
             _save_task(
                 task_id,
                 {
+                    "status": "downloaded",
+                    "video_path": output_path,
                     "downloading": False,
-                    "download_error": str(exc),
+                    "download_error": "",
+                    "downloaded_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 },
             )
-            return (KieVideoAdapter(""), f"下载失败 | {task_id} | 原因: {exc}")
+            downloaded.append((task_id, output_path, filename))
 
-        _save_task(
-            task_id,
-            {
-                "status": "downloaded",
-                "video_path": output_path,
-                "downloading": False,
-                "download_error": "",
-                "downloaded_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            },
-        )
-        return (KieVideoAdapter(output_path), f"下载成功 | {task_id} | {filename}")
+        lines = [f"批量下载完成 | 成功: {len(downloaded)} | 失败: {len(failed)}"]
+        lines.extend(f"[成功] {task_id} | {filename}" for task_id, _, filename in downloaded)
+        lines.extend(f"[失败] {task_id} | 原因: {reason}" for task_id, reason in failed)
+        if not downloaded:
+            raise RuntimeError("\n".join(lines))
+        return (KieVideoAdapter(downloaded[0][1]), "\n".join(lines))
 
 
 class KieVideoSeriesAsyncSubmit:
