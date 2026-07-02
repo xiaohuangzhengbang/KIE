@@ -1070,6 +1070,37 @@ class KieUniversalDownload:
         return (_blank_image(), video, video.video_path, report)
 
 
+def _select_video_download_candidate(tasks):
+    downloaded_urls = {
+        url
+        for task in tasks.values()
+        if isinstance(task, dict) and task.get("status") == "downloaded"
+        for url in task.get("result_urls", [])
+        if isinstance(url, str) and url
+    }
+    candidates = [
+        (task_id, task)
+        for task_id, task in tasks.items()
+        if isinstance(task, dict)
+        and task.get("query_type") in {"jobs", "veo"}
+        and task.get("status") == "success"
+        and task.get("result_urls")
+        and not task.get("video_path")
+        and not task.get("downloading")
+        and task["result_urls"][0] not in downloaded_urls
+    ]
+    candidates.sort(
+        key=lambda item: (
+            item[1].get("submit_order", -1),
+            item[1].get("submitted_at", ""),
+            item[1].get("updated_at", ""),
+            item[0],
+        ),
+        reverse=True,
+    )
+    return candidates[0] if candidates else None
+
+
 class KieVideoResultDownload:
     @classmethod
     def INPUT_TYPES(cls):
@@ -1084,27 +1115,7 @@ class KieVideoResultDownload:
     def download(self):
         with task_file_lock:
             tasks = _read_tasks()
-            candidates = sorted(
-                tasks.items(),
-                key=lambda item: (
-                    item[1].get("submit_order", 0),
-                    item[1].get("submitted_at", ""),
-                    item[0],
-                ),
-            )
-            target = next(
-                (
-                    (task_id, task)
-                    for task_id, task in candidates
-                    if isinstance(task, dict)
-                    and task.get("query_type") in {"jobs", "veo"}
-                    and task.get("status") == "success"
-                    and task.get("result_urls")
-                    and not task.get("video_path")
-                    and not task.get("downloading")
-                ),
-                None,
-            )
+            target = _select_video_download_candidate(tasks)
             if target:
                 task_id, task = target
                 task["downloading"] = True
@@ -1112,7 +1123,26 @@ class KieVideoResultDownload:
                 _write_json_file(TASK_FILE, tasks)
 
         if not target:
-            return (KieVideoAdapter(""), "没有新的可下载视频任务。请先运行“查询全部视频任务”。")
+            failed = [
+                (task_id, task)
+                for task_id, task in tasks.items()
+                if isinstance(task, dict)
+                and task.get("query_type") in {"jobs", "veo"}
+                and task.get("status") == "fail"
+            ]
+            failed.sort(
+                key=lambda item: (
+                    item[1].get("submit_order", -1),
+                    item[1].get("updated_at", ""),
+                ),
+                reverse=True,
+            )
+            message = "没有新的成功视频可下载。请先运行“查询全部视频任务”。"
+            if failed:
+                task_id, task = failed[0]
+                reason = task.get("error") or task.get("last_query_error") or "未知错误"
+                message += f" 最新失败任务: {task_id}，原因: {reason}"
+            raise ValueError(message)
 
         task_id, task = target
         url = task["result_urls"][0]
