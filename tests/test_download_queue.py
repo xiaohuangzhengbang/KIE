@@ -145,6 +145,62 @@ class DownloadQueueTests(unittest.TestCase):
             (False, True, True, False),
         )
 
+    def test_grok_imagine_allows_nine_reference_images(self):
+        image_urls = [f"https://example.test/{index}.png" for index in range(9)]
+
+        model_id, payload = MODULE._build_grok_payload(
+            "grok-imagine",
+            "prompt",
+            "16:9",
+            "720p",
+            6,
+            image_urls,
+            "",
+            0,
+            True,
+        )
+
+        self.assertEqual(model_id, "grok-imagine/image-to-video")
+        self.assertEqual(payload["image_urls"], image_urls)
+
+    def test_grok_imagine_rejects_more_than_nine_reference_images(self):
+        image_urls = [f"https://example.test/{index}.png" for index in range(10)]
+
+        with self.assertRaises(ValueError) as error:
+            MODULE._build_grok_payload(
+                "grok-imagine",
+                "prompt",
+                "16:9",
+                "720p",
+                6,
+                image_urls,
+                "",
+                0,
+                True,
+            )
+
+        self.assertIn("9", str(error.exception))
+        self.assertIn("10", str(error.exception))
+
+    def test_grok_preview_still_rejects_multiple_images(self):
+        image_urls = [f"https://example.test/{index}.png" for index in range(2)]
+
+        with self.assertRaises(ValueError) as error:
+            MODULE._build_grok_payload(
+                "grok-imagine-video-1.5-preview",
+                "prompt",
+                "16:9",
+                "720p",
+                6,
+                image_urls,
+                "",
+                0,
+                True,
+            )
+
+        self.assertIn("1", str(error.exception))
+        self.assertIn("2", str(error.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

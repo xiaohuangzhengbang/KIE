@@ -725,7 +725,8 @@ def _build_veo_payload(model_name, prompt, aspect_ratio, resolution, image_urls,
 
 def _build_grok_payload(model_name, prompt, aspect_ratio, resolution, duration, image_urls, task_id, task_index, nsfw_checker):
     image_urls = [url for url in image_urls if url]
-    _ensure_max_items(model_name, "图片", image_urls, 1)
+    max_images = 1 if model_name == "grok-imagine-video-1.5-preview" else 9
+    _ensure_max_items(model_name, "图片", image_urls, max_images)
     payload = {
         "mode": "normal",
         "duration": _normalize_duration(duration, 6, 6, 30),
