@@ -51,6 +51,39 @@ ASPECT_RATIO_CHOICES = [
 
 RESOLUTION_CHOICES = ["自动", "1K", "2K", "4K"]
 
+IMAGE_MODEL_RULES = {
+    "GPT Image-2": {
+        "max_images": 9,
+        "text_model": "gpt-image-2-text-to-image",
+        "image_model": "gpt-image-2-image-to-image",
+        "image_field": "input_urls",
+    },
+    "Nano Banana": {
+        "max_images": 9,
+        "text_model": "google/nano-banana",
+        "image_model": "google/nano-banana-edit",
+        "image_field": "image_urls",
+    },
+    "Nano Banana 2": {
+        "max_images": 9,
+        "text_model": "nano-banana-2",
+        "image_model": "nano-banana-2",
+        "image_field": "image_input",
+    },
+    "Nano Banana Pro": {
+        "max_images": 9,
+        "text_model": "nano-banana-pro",
+        "image_model": "nano-banana-pro",
+        "image_field": "image_input",
+    },
+    "Seedream 5 Lite": {
+        "max_images": 9,
+        "text_model": "seedream/5-lite-text-to-image",
+        "image_model": "seedream/5-lite-image-to-image",
+        "image_field": "image_urls",
+    },
+}
+
 
 def _get_headers(api_key):
     return {
@@ -146,21 +179,34 @@ def _seedream_quality(resolution):
     return "high" if resolution == "4K" else "basic"
 
 
+def _validate_image_count(model_family, image_urls):
+    rule = IMAGE_MODEL_RULES.get(model_family)
+    if not rule:
+        return
+    count = len([url for url in image_urls if url])
+    max_images = rule["max_images"]
+    if count > max_images:
+        raise ValueError(f"{model_family} 的参考图片最多支持 {max_images} 个，当前传入 {count} 个。请删除多余输入后重试。")
+
+
 def _build_payload(model_family, prompt, aspect_ratio, resolution, image_urls):
+    image_urls = [url for url in image_urls if url]
+    _validate_image_count(model_family, image_urls)
     has_images = bool(image_urls)
     normalized_ratio = _normalize_aspect_ratio(aspect_ratio, model_family)
     normalized_resolution = _normalize_resolution(resolution)
+    rule = IMAGE_MODEL_RULES.get(model_family)
 
     if model_family == "GPT Image-2":
         if has_images:
             payload = {
                 "prompt": prompt,
-                "input_urls": image_urls,
+                rule["image_field"]: image_urls,
                 "aspect_ratio": normalized_ratio or "auto",
             }
             if normalized_resolution:
                 payload["resolution"] = normalized_resolution
-            return "gpt-image-2-image-to-image", payload
+            return rule["image_model"], payload
 
         payload = {
             "prompt": prompt,
@@ -168,44 +214,44 @@ def _build_payload(model_family, prompt, aspect_ratio, resolution, image_urls):
         }
         if normalized_resolution:
             payload["resolution"] = normalized_resolution
-        return "gpt-image-2-text-to-image", payload
+        return rule["text_model"], payload
 
     if model_family == "Nano Banana":
         if has_images:
-            return "google/nano-banana-edit", {
+            return rule["image_model"], {
                 "prompt": prompt,
-                "image_urls": image_urls,
+                rule["image_field"]: image_urls,
                 "output_format": "png",
-                "image_size": normalized_ratio or "auto",
+                "aspect_ratio": normalized_ratio or "auto",
             }
 
-        return "google/nano-banana", {
+        return rule["text_model"], {
             "prompt": prompt,
             "output_format": "png",
-            "image_size": normalized_ratio or "auto",
+            "aspect_ratio": normalized_ratio or "auto",
         }
 
     if model_family == "Nano Banana 2":
         payload = {
             "prompt": prompt,
-            "image_input": image_urls,
+            rule["image_field"]: image_urls,
             "aspect_ratio": normalized_ratio or "auto",
             "output_format": "jpg",
         }
         if normalized_resolution:
             payload["resolution"] = normalized_resolution
-        return "nano-banana-2", payload
+        return rule["image_model"] if has_images else rule["text_model"], payload
 
     if model_family == "Nano Banana Pro":
         payload = {
             "prompt": prompt,
-            "image_input": image_urls,
+            rule["image_field"]: image_urls,
             "aspect_ratio": normalized_ratio or "auto",
             "output_format": "png",
         }
         if normalized_resolution:
             payload["resolution"] = normalized_resolution
-        return "nano-banana-pro", payload
+        return rule["image_model"] if has_images else rule["text_model"], payload
 
     if model_family == "Seedream 5 Lite":
         common = {
@@ -215,9 +261,9 @@ def _build_payload(model_family, prompt, aspect_ratio, resolution, image_urls):
             "nsfw_checker": False,
         }
         if has_images:
-            common["image_urls"] = image_urls
-            return "seedream/5-lite-image-to-image", common
-        return "seedream/5-lite-text-to-image", common
+            common[rule["image_field"]] = image_urls
+            return rule["image_model"], common
+        return rule["text_model"], common
 
     raise ValueError(f"不支持的模型: {model_family}")
 
@@ -374,6 +420,12 @@ class KieImageNode:
                 "图片": ("IMAGE",),
                 "图片2": ("IMAGE",),
                 "图片3": ("IMAGE",),
+                "图片4": ("IMAGE",),
+                "图片5": ("IMAGE",),
+                "图片6": ("IMAGE",),
+                "图片7": ("IMAGE",),
+                "图片8": ("IMAGE",),
+                "图片9": ("IMAGE",),
                 "图片URL": ("STRING", {"default": ""}),
             },
         }
@@ -389,7 +441,17 @@ class KieImageNode:
         prompt = (kwargs.get("提示词") or "").strip()
         aspect_ratio = kwargs.get("画面比例") or "auto"
         resolution = kwargs.get("分辨率") or "自动"
-        images = [kwargs.get("图片"), kwargs.get("图片2"), kwargs.get("图片3")]
+        images = [
+            kwargs.get("图片"),
+            kwargs.get("图片2"),
+            kwargs.get("图片3"),
+            kwargs.get("图片4"),
+            kwargs.get("图片5"),
+            kwargs.get("图片6"),
+            kwargs.get("图片7"),
+            kwargs.get("图片8"),
+            kwargs.get("图片9"),
+        ]
         image_url_text = kwargs.get("图片URL") or ""
 
         if not api_key:
