@@ -57,6 +57,13 @@ BUILT_IN_PRESETS = [
 ]
 
 
+def _authorization_header(api_key):
+    token = str(api_key or "").strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+    return f"Bearer {token}"
+
+
 class KieVideoAdapter:
     def __init__(self, video_path):
         self.video_path = video_path
@@ -77,7 +84,7 @@ class KieVideoAdapter:
 def _get_headers(api_key):
     return {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key.strip()}",
+        "Authorization": _authorization_header(api_key),
     }
 
 
@@ -363,7 +370,7 @@ def _upload_file(api_key, file_path):
     with open(file_path, "rb") as file_obj:
         response = requests.post(
             "https://kieai.redpandaai.co/api/file-stream-upload",
-            headers={"Authorization": f"Bearer {api_key.strip()}"},
+            headers={"Authorization": _authorization_header(api_key)},
             data={"uploadPath": "comfy", "fileName": upload_name},
             files={"file": (upload_name, file_obj)},
             timeout=120,

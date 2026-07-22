@@ -15,6 +15,10 @@ SPEC.loader.exec_module(MODULE)
 
 
 class DownloadQueueTests(unittest.TestCase):
+    def test_accepts_api_key_with_or_without_bearer_prefix(self):
+        self.assertEqual(MODULE._get_headers("abc")["Authorization"], "Bearer abc")
+        self.assertEqual(MODULE._get_headers("Bearer abc")["Authorization"], "Bearer abc")
+
     def test_uses_video_url_when_grok_returns_image_then_video(self):
         task = {
             "result_urls": [

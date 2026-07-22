@@ -85,10 +85,17 @@ IMAGE_MODEL_RULES = {
 }
 
 
+def _authorization_header(api_key):
+    token = str(api_key or "").strip()
+    if token.lower().startswith("bearer "):
+        token = token[7:].strip()
+    return f"Bearer {token}"
+
+
 def _get_headers(api_key):
     return {
         "Content-Type": "application/json",
-        "Authorization": f"Bearer {api_key.strip()}",
+        "Authorization": _authorization_header(api_key),
     }
 
 
@@ -126,7 +133,7 @@ def _upload_file_stream(api_key, file_path):
     with open(file_path, "rb") as file_obj:
         response = requests.post(
             f"{KIE_FILE_HOST}/api/file-stream-upload",
-            headers={"Authorization": f"Bearer {api_key.strip()}"},
+            headers={"Authorization": _authorization_header(api_key)},
             data={"uploadPath": "comfy", "fileName": upload_name},
             files={"file": (upload_name, file_obj)},
             timeout=120,

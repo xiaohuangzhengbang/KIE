@@ -10,6 +10,10 @@ SPEC.loader.exec_module(MODULE)
 
 
 class ImageRuleTests(unittest.TestCase):
+    def test_accepts_api_key_with_or_without_bearer_prefix(self):
+        self.assertEqual(MODULE._get_headers("abc")["Authorization"], "Bearer abc")
+        self.assertEqual(MODULE._get_headers("Bearer abc")["Authorization"], "Bearer abc")
+
     def test_image_node_exposes_nine_image_inputs(self):
         optional = MODULE.KieImageNode.INPUT_TYPES()["optional"]
 
